@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -50,6 +51,14 @@ namespace Nevrona
                     PreviousLayer = prevLayer
                 });
             }
+        }
+
+
+        public NeuralNetwork RandomizeWeights()
+        {
+            ForEach(l => l.RandomizeWeights());
+
+            return this;
         }
 
 
@@ -238,98 +247,5 @@ namespace Nevrona
             return nn;
         }
 
-
-        public static NeuralNetwork FromText(IEnumerable<string> text, out int position)
-        {
-            var t = text.GetEnumerator();
-
-            var inv = CultureInfo.InvariantCulture;
-            var stage = 0;
-
-            NeuralNetwork nn = null;
-            Layer layer = null;
-            Neuron neuron = null;
-            position = -1;
-
-            while (t.MoveNext())
-            {
-                ++position;
-                var s = t.Current.Trim();
-
-                if (s == "")
-                    continue;
-
-                switch (stage)
-                {
-                    case 0:
-                        if (s != "NeuralNetwork")
-                            break;
-                        
-                        nn = new NeuralNetwork();
-
-                        stage++;
-                        break;
-
-                    case 1:
-                        if (s == "Layer")
-                        {
-                            stage++;
-                            layer = nn.AddLayer();
-                        }
-                        else
-                            stage--;
-
-                        break;
-
-                    case 2:
-                        if (s == "Neuron")
-                        {
-                            neuron = layer.AddNeuron();
-                            stage++;
-                        }
-                        else
-                            stage--;
-
-                        break;
-                        
-                    case 3:
-                        double w;
-
-                        if (double.TryParse(s, NumberStyles.None, inv, out w))
-                            neuron.Add(w);
-                        else
-                            stage--;
-
-                        break;
-                }                
-            }
-
-            return nn;            
-        }
-
-
-        public override string ToString()
-        {
-            var inv = CultureInfo.InvariantCulture;
-
-            var sb = new StringBuilder();
-            
-            sb.AppendLine("NeuralNetwork");
-            
-            foreach(var l in this)
-            {
-                sb.Append("  Layer");
-
-                foreach (var n in l)
-                {
-                    sb.AppendLine("    Neuron");
-
-                    foreach (var w in n)
-                        sb.AppendLine("      " + w.ToString(inv));
-                }
-            }
-
-            return sb.ToString();
-        }
     }
 }

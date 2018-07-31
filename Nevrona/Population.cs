@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -16,10 +17,16 @@ namespace Nevrona
         public double MutationRate = 0.01;
 
 
+        public Population()
+        {
+        }
+
+
         public Population(int size, params int[] neuronCounts)
         {
             AddRange(Enumerable.Range(0, size)
-                     .Select(i => new NeuralNetwork(true, neuronCounts)));
+                     .Select(i => new NeuralNetwork(neuronCounts)
+                                  .RandomizeWeights()));
         }
 
 
@@ -27,20 +34,6 @@ namespace Nevrona
         {
             AddRange(members
                      .Select(dna => new NeuralNetwork(dna, neuronCounts)));
-        }
-
-
-        public static Population FromText(IEnumerable<string> text)
-        {
-            int last = 0;
-
-            while (true)
-            {
-                var nn = NeuralNetwork.FromText(text.Skip(last), out last)
-                text = text.Skip(last);
-            }
-
-                    }
         }
 
 

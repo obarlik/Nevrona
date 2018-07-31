@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -62,9 +63,7 @@ namespace Nevrona
         {
             for (var i = 0; i < Count; i++)
                 this[i] = RandomRange(-0.1, 0.1);
-
-            Bias = RandomRange(-0.1, 0.1);
-
+            
             return this;
         }
 
@@ -94,5 +93,7 @@ namespace Nevrona
                                  .Sum() + Bias) :
                         Input + Bias)).Value;
         }
+
+
     }
 }
