@@ -4,27 +4,48 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Xml.Serialization;
 
 namespace Nevrona
 {
     [Serializable]
-    public class NeuralNetwork : List<Layer>
+    public class NeuralNetwork 
     {
-        public Layer Input { get { return this[0]; } }
-        public Layer Output { get { return this[Count - 1]; } }
+        [XmlIgnore]
+        public Layer Input { get { return Layers.First(); } }
 
 
+        [XmlIgnore]
+        public Layer Output { get { return Layers.Last(); } }
+
+
+        public List<Layer> Layers { get; }
+
+
+        [XmlAttribute]
+        public int Generation { get; set; }
+
+
+        [XmlIgnore]
+        public double Fitness
+        {
+            get;
+            protected set;
+        }
+
+
+        [XmlIgnore]
         public int[] NeuronCounts
         {
             get
             {
-                return this.Select(l => l.Count)
+                return Layers.Select(l => l.Count)
                        .ToArray();
             }
 
             set
             {
-                Clear();
+                Layers.Clear();
 
                 if (value == null)
                     return;
@@ -36,7 +57,7 @@ namespace Nevrona
 
                 foreach (var nc in value)
                 {
-                    Add(new Layer()
+                    Layers.Add(new Layer()
                     {
                         NeuronCount = nc
                     });
@@ -45,33 +66,30 @@ namespace Nevrona
         }
 
 
-        public NeuralNetwork RandomizeWeights()
-        {
-            ForEach(l => l.RandomizeWeights());
-
-            return this;
-        }
-
-
+        [XmlIgnore]
         public int GenomeLength
         {
             get
             {
-                return this.SelectMany(l => 
+                return Layers.SelectMany(l =>
                         l.SelectMany(n => n))
                        .Count();
             }
         }
 
 
-        public int Generation;
+        public NeuralNetwork RandomizeWeights()
+        {
+            Layers.ForEach(l => l.RandomizeWeights());
+
+            return this;
+        }
 
 
-        public double Fitness { get; protected set; }
-        
 
         public NeuralNetwork()
         {
+            Layers = new List<Layer>();
         }
 
 
@@ -83,6 +101,7 @@ namespace Nevrona
 
 
         public NeuralNetwork(int[] neuronCounts)
+            : this()
         {
             NeuronCounts = neuronCounts;
         }
@@ -114,11 +133,11 @@ namespace Nevrona
 
             Layer layer = null;
 
-            foreach (var l in this)
+            Layers.ForEach(l =>
             {
                 l.Calculate(layer);
                 layer = l;
-            }
+            });
         }
 
 
@@ -130,12 +149,12 @@ namespace Nevrona
 
     //    Output.Zip(ideals, (o, i) => -Math.Pow(o.Output.Value - i, 2.0)).Sum();
       
-        
+        [XmlIgnore]
         public double[] DNA
         {
             get
             {
-                return this
+                return Layers
                        .SelectMany(l => l.SelectMany(n => n))
                        .ToArray();
             }
@@ -147,7 +166,7 @@ namespace Nevrona
 
                 var i = 0;
 
-                foreach (var n in this.SelectMany(l => l))
+                foreach (var n in Layers.SelectMany(l => l))
                     foreach (var ni in Enumerable.Range(0, n.Count))
                         n[ni] = value[i++];
             }
@@ -161,7 +180,7 @@ namespace Nevrona
         }
 
 
-        public IEnumerable<NeuralNetwork> CrossOver(NeuralNetwork partner, Action<NeuralNetwork> init = null)
+        public IEnumerable<NeuralNetwork> CrossOver(NeuralNetwork partner, int generation)
         {
             var crossIndex = (int)(GenomeLength * Neuron.RandomRange(0.15, 0.85));
 
@@ -171,44 +190,36 @@ namespace Nevrona
             if (dna1.Length != dna2.Length)
                 throw new ArgumentException("Genome mismatch!", "partner");
 
-            var nn = new NeuralNetwork(
-                dna1.Take(crossIndex)
-                .Concat(dna2.Skip(crossIndex))
-                .ToArray(), NeuronCounts)
-            {
-                Generation = Math.Max(Generation, partner.Generation) + 1
-            };
+            yield return
+                new NeuralNetwork(
+                    dna1.Take(crossIndex)
+                    .Concat(dna2.Skip(crossIndex))
+                    .ToArray(), NeuronCounts)
+                {
+                    Generation = generation
+                };
 
-            if (init != null)
-                init(nn);
-
-            yield return nn;
-
-            nn = new NeuralNetwork(
+            yield return new NeuralNetwork(
                 dna2.Take(crossIndex)
                 .Concat(dna1.Skip(crossIndex))
-                .ToArray(), NeuronCounts);
-            
-            if (init != null)
-                init(nn);
-
-            yield return nn;
+                .ToArray(), NeuronCounts)
+                {
+                    Generation = generation
+                };
         }
 
 
-        public NeuralNetwork Mutate(Action<NeuralNetwork> init = null)
+        public NeuralNetwork Mutate(int generation)
         {
             var mutateIndex = (int)(GenomeLength * Neuron.RandomRange(0.15, 0.85));
 
             var dna = DNA;
             dna[mutateIndex] = Neuron.RandomRange(-0.1, 0.1);
 
-            var nn = new NeuralNetwork(dna, NeuronCounts);
-
-            if (init != null)
-                init(nn);            
-
-            return nn;
+            return new NeuralNetwork(dna, NeuronCounts)
+            {
+                Generation = generation
+            };
         }
 
     }

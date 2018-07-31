@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using System.Xml.Serialization;
 
 namespace Nevrona
 {
     [Serializable]
-    public class Population : List<NeuralNetwork>
+    public class Population 
     {
         public int Generation;
 
@@ -18,23 +20,32 @@ namespace Nevrona
         public double MutationRate = 0.01;
 
 
+        public List<NeuralNetwork> NeuralNetworks { get; }
+
+
         public Population()
         {
+            NeuralNetworks = new List<NeuralNetwork>();
         }
 
 
         public Population(int size, params int[] neuronCounts)
+            : this()
         {
-            AddRange(Enumerable.Range(0, size)
-                     .Select(i => new NeuralNetwork(neuronCounts)
-                                  .RandomizeWeights()));
+            NeuralNetworks
+            .AddRange(
+                Enumerable.Range(0, size)
+                .Select(i => new NeuralNetwork(neuronCounts)
+                             .RandomizeWeights()));
         }
 
 
         public Population(IEnumerable<double[]> members, params int[] neuronCounts)
+            : this()
         {
-            AddRange(members
-                     .Select(dna => new NeuralNetwork(dna, neuronCounts)));
+            NeuralNetworks
+            .AddRange(members
+                      .Select(dna => new NeuralNetwork(dna, neuronCounts)));
         }
 
 
@@ -58,23 +69,25 @@ namespace Nevrona
             ++Generation;
             
             var selected =
-                this.OrderByDescending(nn => nn.Fitness)
-                .Take((int)(Count * SelectionRate))
+                NeuralNetworks
+                .OrderByDescending(nn => nn.Fitness)
+                .Take((int)(NeuralNetworks.Count * SelectionRate))
                 .ToArray();
 
-            Clear();
+            NeuralNetworks.Clear();
 
             var elites =
                 selected
                 .Take((int)(selected.Length * ElitismRate))
                 .ToArray();
 
-            AddRange(elites);
+            NeuralNetworks.AddRange(elites);
 
-            AddRange(
+            NeuralNetworks
+            .AddRange(
                 RandomSelect(elites.Length)
                 .Take((int)(elites.Length * MutationRate))
-                .Select(i => elites[i].Mutate(c => c.Generation = Generation)));
+                .Select(i => elites[i].Mutate(Generation)));
 
             var parents =
                 RandomSelect(elites.Length)
@@ -84,19 +97,21 @@ namespace Nevrona
 
             var motherCount = parents.Length / 2;
 
-            AddRange(
+            NeuralNetworks
+            .AddRange(
                 parents.Take(motherCount)
                 .Zip(parents.Skip(motherCount),
-                    (m, f) => m.CrossOver(f, c => c.Generation = Generation))
+                    (m, f) => m.CrossOver(f, Generation))
                 .SelectMany(c => c));
 
             var otherCount = selected.Length - elites.Length;
 
-            AddRange(
+            NeuralNetworks
+            .AddRange(
                 RandomSelect(otherCount)
                 .Take((int)(otherCount * MutationRate))
                 .Select(i => selected[elites.Length + i]
-                             .Mutate(c => c.Generation = Generation)));
+                             .Mutate(Generation)));
 
             parents =
                 RandomSelect(otherCount)
@@ -106,12 +121,32 @@ namespace Nevrona
 
             motherCount = parents.Length / 2;
 
-            AddRange(
+            NeuralNetworks
+            .AddRange(
                 parents.Take(motherCount)
                 .Zip(parents.Skip(motherCount),
-                    (m, f) => m.CrossOver(f, c => c.Generation = Generation))
+                    (m, f) => m.CrossOver(f, Generation))
                 .SelectMany(c => c));
         }
 
+
+        public void SaveToFile(string fileName)
+        {
+            using (var fs = File.Create(fileName))
+            {
+                new XmlSerializer(GetType())
+                .Serialize(fs, this);
+            }
+        }
+
+
+        public static Population FromFile(string fileName)
+        {
+            using (var fs = File.Create(fileName))
+            {
+                return (Population)new XmlSerializer(typeof(Population))
+                       .Deserialize(fs);
+            }
+        }
     }
 }

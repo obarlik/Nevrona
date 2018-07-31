@@ -11,9 +11,9 @@ namespace NevronaApp
     {
         static void Main(string[] args)
         {
+            var population = new Population(2, 3, 4, 1);
 
-
-
+            population.SaveToFile("test.xml");
         }
     }
 }
