@@ -1,81 +1,107 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 
 namespace Nevrona
 {
-    public class NeuralNetwork : List<Neuron>
+    public class NeuralNetwork : List<Layer>
     {
-        public Neuron[] Input { get; }
-        public Neuron[] Output { get; }
+        public Layer Input { get { return this[0]; } }
+        public Layer Output { get { return this[Count - 1]; } }
 
 
-        public int GenomeLength { get; }
-        public int[] NeuronCounts { get; }
+        public int[] NeuronCounts
+        {
+            get
+            {
+                return this.Select(l => l.Count).ToArray();
+
+            }
+
+            set
+            {
+                Clear();
+
+                if (value == null || value.Length < 3)
+                    return;
+
+                Add(new Layer()
+                {
+                    NeuronCount = value[0]
+                });
+
+                var prevLayer = Input;
+
+                foreach (var nc in value.Skip(1)
+                                   .Take(value.Length - 2))
+                {
+                    Add(prevLayer = new Layer()
+                    {
+                        NeuronCount = nc,
+                        PreviousLayer = prevLayer
+                    });
+                }
+
+                Add(new Layer()
+                {
+                    NeuronCount = value.Last(),
+                    PreviousLayer = prevLayer
+                });
+            }
+        }
+
+
+        public int GenomeLength
+        {
+            get
+            {
+                return Input.NeuronCount
+                     + this.Skip(1).Sum(l => l.NeuronCount * (l.PreviousLayer.Count + 1));
+            }
+        }
+
+
         public int Generation { get; set; }
 
 
         public double Fitness { get; protected set; }
+        
 
-
-        public NeuralNetwork(bool randomInit, params int[] neuronCounts)
+        public NeuralNetwork()
         {
-            if (neuronCounts.Length < 2)
-                throw new ArgumentException(
-                    "At least one hidden layer needed!", 
-                    "neuronCount");
-
-            NeuronCounts = neuronCounts;
-
-            Input = GenerateNeurons()
-                    .Take(neuronCounts.First())
-                    .ToArray();
-
-            var prevLayer = Input;
-
-            GenomeLength =
-                neuronCounts
-                .Select(
-                    (c, i) => i == 0 ? 
-                        1 : 
-                        neuronCounts[i - 1] + 1)
-                .Sum();
-
-            foreach (var nc in neuronCounts.Skip(1)
-                               .Take(neuronCounts.Length - 2))
-            {
-                prevLayer =
-                    GenerateNeurons(n => n.FullConnect(prevLayer))
-                    .Take(nc)
-                    .ToArray();
-            }
-
-            Output = GenerateNeurons(n => n.FullConnect(prevLayer))
-                     .Take(neuronCounts.Last())
-                     .ToArray();            
-        }
-
-
-        IEnumerable<Neuron> GenerateNeurons(Action<Neuron> neuronInit = null)
-        {
-            while (true)
-            {
-                var n = new Neuron();
-
-                if (neuronInit != null)
-                    neuronInit(n);
-
-                Add(n);
-
-                yield return n;
-            }
         }
 
 
         public NeuralNetwork(double[] dna, int[] neuronCount)
-            : this(false, neuronCount)
+            : this(neuronCount)
         {
             DNA = dna;
+        }
+
+
+        public NeuralNetwork(int[] neuronCounts)
+        {
+            if (neuronCounts.Length < 2)
+                throw new ArgumentException(
+                    "At least one hidden layer needed!",
+                    "neuronCount");
+
+            NeuronCounts = neuronCounts;
+        }
+
+
+        public Layer AddLayer()
+        {
+            var layer = new Layer();
+
+            if (this.Any())
+                layer.PreviousLayer = this.Last();
+
+            Add(layer);
+
+            return layer;
         }
 
 
@@ -97,10 +123,10 @@ namespace Nevrona
         }
 
 
-        void Reset()
+        public void Reset()
         {
             Fitness = double.MinValue;
-            this.AsParallel().ForAll(n => n.Reset());
+            this.AsParallel().ForAll(l => l.Reset());
         }
 
 
@@ -129,9 +155,9 @@ namespace Nevrona
             {
                 return this
                        .SelectMany(
-                            n => n.Select(w => w.Value)
-                                 .Concat(new[] { n.Bias }))
-                                 .ToArray();
+                           l => l.SelectMany(
+                               n => n.Concat(new[] { n.Bias })))
+                       .ToArray();
             }
 
             set
@@ -141,12 +167,15 @@ namespace Nevrona
 
                 var i = 0;
 
-                foreach (var n in this)
+                foreach (var l in this)
                 {
-                    foreach (var w in n.ToArray())
-                        n[w.Key] = value[i++];
+                    foreach (var n in l)
+                    {
+                        foreach (var ni in Enumerable.Range(0, n.Count))
+                            n[ni] = value[i++];
 
-                    n.Bias = value[i++];
+                        n.Bias = value[i++];
+                    }
                 }
             }
         }
@@ -155,11 +184,11 @@ namespace Nevrona
         public IEnumerable<NeuralNetwork> Generate()
         {
             while (true)
-                yield return new NeuralNetwork(true, NeuronCounts);
+                yield return new NeuralNetwork(NeuronCounts);
         }
 
 
-        public IEnumerable<NeuralNetwork> CrossOver(NeuralNetwork partner)
+        public IEnumerable<NeuralNetwork> CrossOver(NeuralNetwork partner, Action<NeuralNetwork> init = null)
         {
             var crossIndex = (int)(GenomeLength * Neuron.RandomRange(0.15, 0.85));
 
@@ -169,7 +198,7 @@ namespace Nevrona
             if (dna1.Length != dna2.Length)
                 throw new ArgumentException("Genome mismatch!", "partner");
 
-            yield return new NeuralNetwork(
+            var nn = new NeuralNetwork(
                 dna1.Take(crossIndex)
                 .Concat(dna2.Skip(crossIndex))
                 .ToArray(), NeuronCounts)
@@ -177,107 +206,130 @@ namespace Nevrona
                 Generation = Math.Max(Generation, partner.Generation) + 1
             };
 
-            yield return new NeuralNetwork(
+            if (init != null)
+                init(nn);
+
+            yield return nn;
+
+            nn = new NeuralNetwork(
                 dna2.Take(crossIndex)
                 .Concat(dna1.Skip(crossIndex))
-                .ToArray(), NeuronCounts)
-            {
-                Generation = Math.Max(Generation, partner.Generation) + 1
-            };
+                .ToArray(), NeuronCounts);
+            
+            if (init != null)
+                init(nn);
+
+            yield return nn;
         }
 
 
-        public IEnumerable<NeuralNetwork> Mutate()
+        public NeuralNetwork Mutate(Action<NeuralNetwork> init = null)
         {
             var mutateIndex = (int)(GenomeLength * Neuron.RandomRange(0.15, 0.85));
 
             var dna = DNA;
             dna[mutateIndex] = Neuron.RandomRange(-0.1, 0.1);
 
-            yield return new NeuralNetwork(dna, NeuronCounts)
-            {
-                Generation = Generation + 1
-            };
+            var nn = new NeuralNetwork(dna, NeuronCounts);
+
+            if (init != null)
+                init(nn);            
+
+            return nn;
         }
 
 
-        public static IEnumerable<int> RandomSelect(int count)
+        public static NeuralNetwork FromText(IEnumerable<string> text, out int position)
         {
-            var resultSet = Enumerable.Range(0, count)
-                            .ToList();
+            var t = text.GetEnumerator();
 
-            while (count > 0)
+            var inv = CultureInfo.InvariantCulture;
+            var stage = 0;
+
+            NeuralNetwork nn = null;
+            Layer layer = null;
+            Neuron neuron = null;
+            position = -1;
+
+            while (t.MoveNext())
             {
-                var i = (int)Neuron.RandomRange(0, count--);
-                yield return resultSet[i];
+                ++position;
+                var s = t.Current.Trim();
 
-                resultSet.RemoveAt(i);
+                if (s == "")
+                    continue;
+
+                switch (stage)
+                {
+                    case 0:
+                        if (s != "NeuralNetwork")
+                            break;
+                        
+                        nn = new NeuralNetwork();
+
+                        stage++;
+                        break;
+
+                    case 1:
+                        if (s == "Layer")
+                        {
+                            stage++;
+                            layer = nn.AddLayer();
+                        }
+                        else
+                            stage--;
+
+                        break;
+
+                    case 2:
+                        if (s == "Neuron")
+                        {
+                            neuron = layer.AddNeuron();
+                            stage++;
+                        }
+                        else
+                            stage--;
+
+                        break;
+                        
+                    case 3:
+                        double w;
+
+                        if (double.TryParse(s, NumberStyles.None, inv, out w))
+                            neuron.Add(w);
+                        else
+                            stage--;
+
+                        break;
+                }                
             }
+
+            return nn;            
         }
 
-        
-        public static IEnumerable<NeuralNetwork> Offspring(
-            IEnumerable<NeuralNetwork> population,
-            double selectRatio = 0.5,
-            double elitismRatio = 0.1,
-            double reproduceRatio = 0.2,
-            double mutateRatio = 0.01)
+
+        public override string ToString()
         {
-            var ordered = 
-                population
-                .OrderByDescending(nn => nn.Fitness)
-                .ToArray();
+            var inv = CultureInfo.InvariantCulture;
 
-            var selected = 
-                ordered
-                .Take((int)(ordered.Length * selectRatio))
-                .ToArray();
+            var sb = new StringBuilder();
+            
+            sb.AppendLine("NeuralNetwork");
+            
+            foreach(var l in this)
+            {
+                sb.Append("  Layer");
 
-            var elites =
-                selected
-                .Take((int)(selected.Length * elitismRatio))
-                .ToArray();
+                foreach (var n in l)
+                {
+                    sb.AppendLine("    Neuron");
 
-            foreach (var nn in elites)
-                yield return nn;
+                    foreach (var w in n)
+                        sb.AppendLine("      " + w.ToString(inv));
+                }
+            }
 
-            foreach (var nn in RandomSelect(elites.Length)
-                               .Take((int)(elites.Length * mutateRatio))
-                               .SelectMany(i => elites[i].Mutate()))
-                yield return nn;
-
-            var parents =
-                RandomSelect(elites.Length)
-                .Take((int)(elites.Length * reproduceRatio / 2.0) * 2)
-                .Select(i => elites[i])
-                .ToArray();
-
-            var motherCount = parents.Length / 2;
-
-            foreach (var nn in
-                     parents.Take(motherCount)
-                     .Zip(parents.Skip(motherCount),
-                          (m, f) => m.CrossOver(f))
-                     .SelectMany(c => c))
-                yield return nn;
-
-            var otherCount = selected.Length - elites.Length;
-
-            parents =
-                RandomSelect(otherCount)
-                .Take((int)(otherCount * reproduceRatio))
-                .Select(i => selected[elites.Length + i])
-                .ToArray();
-
-            motherCount = parents.Length / 2;
-
-            foreach (var nn in
-                     parents.Take(motherCount)
-                     .Zip(parents.Skip(motherCount),
-                          (m, f) => m.CrossOver(f))
-                     .SelectMany(c => c))
-                yield return nn;
+            return sb.ToString();
         }
-
     }
 }

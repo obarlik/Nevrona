@@ -5,8 +5,44 @@ using System.Text;
 
 namespace Nevrona
 {
-    public class Neuron : Dictionary<Neuron, double>
+    public class Neuron : List<double>
     {
+        Layer _Layer;
+
+        public Layer Layer
+        {
+            get { return _Layer; }
+
+            set
+            {
+                _Layer = value;
+
+                Clear();
+                Add(0.0);
+
+                if (value != null)
+                    AddRange(new double[value.Count]);
+            }
+        }
+        
+
+        public double Input;
+        public double? Output;
+
+
+        public double Bias
+        {
+            get { return this[Count - 1]; }
+            set { this[Count - 1] = value; }
+        }
+
+
+        public int GenomeLength
+        {
+            get { return Count; }
+        }
+
+
         static Random rnd = new Random();
 
 
@@ -18,39 +54,19 @@ namespace Nevrona
 
         public Neuron()
         {
+            Add(0.0);
         }
 
 
-        public Neuron(Neuron[] inputLayer, bool randomInit = true)
+        public Neuron RandomizeWeights()
         {
-            FullConnect(inputLayer);
-
-            if (randomInit)
-                RandomizeWeights();
-        }
-
-
-        public void FullConnect(Neuron[] inputLayer)
-        {
-            Clear();
-
-            foreach (var n in inputLayer)
-                this[n] = 0.0;
-        }
-
-
-        public void RandomizeWeights()
-        {
-            foreach (var p in this)
-                this[p.Key] = RandomRange(-0.1, 0.1);
+            for (var i = 0; i < Count; i++)
+                this[i] = RandomRange(-0.1, 0.1);
 
             Bias = RandomRange(-0.1, 0.1);
+
+            return this;
         }
-
-
-        public double Input;
-        public double? Output;
-        public double Bias;
 
 
         double Transfer(double x)
@@ -71,11 +87,12 @@ namespace Nevrona
         {
             return Output ??
                   (Output = Transfer(
-                      this.Any() ?
+                      Layer.PreviousLayer != null ?
                         (Input = this
-                                 .Select(w => w.Key.Calculate() * w.Value)
+                                 .Zip(Layer.PreviousLayer, 
+                                      (w, n) => w * n.Calculate())
                                  .Sum() + Bias) :
-                        Input)).Value;
+                        Input + Bias)).Value;
         }
     }
 }
