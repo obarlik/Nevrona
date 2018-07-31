@@ -7,9 +7,10 @@ using System.Text;
 
 namespace Nevrona
 {
+    [Serializable]
     public class Population : List<NeuralNetwork>
     {
-        public int Generation { get; protected set; }
+        public int Generation;
 
         public double SelectionRate = 0.5;
         public double ElitismRate = 0.1;

@@ -6,41 +6,26 @@ using System.Text;
 
 namespace Nevrona
 {
+    [Serializable]
     public class Neuron : List<double>
     {
-        Layer _Layer;
-
-        public Layer Layer
-        {
-            get { return _Layer; }
-
-            set
-            {
-                _Layer = value;
-
-                Clear();
-                Add(0.0);
-
-                if (value != null)
-                    AddRange(new double[value.Count]);
-            }
-        }
-        
-
+        [NonSerialized]
         public double Input;
-        public double? Output;
 
 
-        public double Bias
-        {
-            get { return this[Count - 1]; }
-            set { this[Count - 1] = value; }
-        }
-
+        [NonSerialized]
+        public double Output;
+        
 
         public int GenomeLength
         {
             get { return Count; }
+        }
+
+
+        public double Bias
+        {
+            get { return this.Last(); }
         }
 
 
@@ -74,24 +59,19 @@ namespace Nevrona
 
             return (v - 1.0) / (v + 1.0);
         }
-
-
-        public void Reset()
+        
+        
+        public double Calculate(Layer previousLayer)
         {
-            Output = null;
-        }
-
-
-        public double Calculate()
-        {
-            return Output ??
-                  (Output = Transfer(
-                      Layer.PreviousLayer != null ?
-                        (Input = this
-                                 .Zip(Layer.PreviousLayer, 
-                                      (w, n) => w * n.Calculate())
-                                 .Sum() + Bias) :
-                        Input + Bias)).Value;
+            return Output = 
+                Transfer(
+                    (previousLayer != null ?
+                     (Input = 
+                        this
+                        .Zip(previousLayer,
+                            (w, n) => w * n.Output)
+                        .Sum()) :
+                        Input) + Bias);
         }
 
 

@@ -6,10 +6,9 @@ using System.Text;
 
 namespace Nevrona
 {
+    [Serializable]
     public class Layer : List<Neuron>
     {
-        public Layer PreviousLayer { get; set; }
-
         public Layer()
         {
         }
@@ -22,17 +21,11 @@ namespace Nevrona
             set
             {
                 while (Count > value) RemoveAt(Count - 1);
-                while (Count < value) AddNeuron();
+                while (Count < value) Add(new Neuron());
             }
         }
 
-
-        public void Reset()
-        {
-            ForEach(n => n.Reset());
-        }
-
-
+        
         public Layer RandomizeWeights()
         {
             ForEach(n => n.RandomizeWeights());
@@ -41,12 +34,10 @@ namespace Nevrona
         }
 
 
-        public Neuron AddNeuron()
+        public void Calculate(Layer prevLayer)
         {
-            var neuron = new Neuron() { Layer = this };
-            Add(neuron);
-            return neuron;
+            this.AsParallel()
+            .ForAll(n => n.Calculate(prevLayer));
         }
-
     }
 }

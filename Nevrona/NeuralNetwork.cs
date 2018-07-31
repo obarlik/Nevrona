@@ -7,6 +7,7 @@ using System.Text;
 
 namespace Nevrona
 {
+    [Serializable]
     public class NeuralNetwork : List<Layer>
     {
         public Layer Input { get { return this[0]; } }
@@ -17,39 +18,29 @@ namespace Nevrona
         {
             get
             {
-                return this.Select(l => l.Count).ToArray();
-
+                return this.Select(l => l.Count)
+                       .ToArray();
             }
 
             set
             {
                 Clear();
 
-                if (value == null || value.Length < 3)
+                if (value == null)
                     return;
 
-                Add(new Layer()
-                {
-                    NeuronCount = value[0]
-                });
+                if (value.Length < 3)
+                    throw new ArgumentException(
+                        "At least one hidden layer needed!",
+                        "neuronCount");
 
-                var prevLayer = Input;
-
-                foreach (var nc in value.Skip(1)
-                                   .Take(value.Length - 2))
+                foreach (var nc in value)
                 {
-                    Add(prevLayer = new Layer()
+                    Add(new Layer()
                     {
-                        NeuronCount = nc,
-                        PreviousLayer = prevLayer
+                        NeuronCount = nc
                     });
                 }
-
-                Add(new Layer()
-                {
-                    NeuronCount = value.Last(),
-                    PreviousLayer = prevLayer
-                });
             }
         }
 
@@ -66,13 +57,14 @@ namespace Nevrona
         {
             get
             {
-                return Input.NeuronCount
-                     + this.Skip(1).Sum(l => l.NeuronCount * (l.PreviousLayer.Count + 1));
+                return this.SelectMany(l => 
+                        l.SelectMany(n => n))
+                       .Count();
             }
         }
 
 
-        public int Generation { get; set; }
+        public int Generation;
 
 
         public double Fitness { get; protected set; }
@@ -92,25 +84,7 @@ namespace Nevrona
 
         public NeuralNetwork(int[] neuronCounts)
         {
-            if (neuronCounts.Length < 2)
-                throw new ArgumentException(
-                    "At least one hidden layer needed!",
-                    "neuronCount");
-
             NeuronCounts = neuronCounts;
-        }
-
-
-        public Layer AddLayer()
-        {
-            var layer = new Layer();
-
-            if (this.Any())
-                layer.PreviousLayer = this.Last();
-
-            Add(layer);
-
-            return layer;
         }
 
 
@@ -132,20 +106,19 @@ namespace Nevrona
         }
 
 
-        public void Reset()
-        {
-            Fitness = double.MinValue;
-            this.AsParallel().ForAll(l => l.Reset());
-        }
-
-
         public void Run(double[] inputs)
         {
-            Reset();
-            Input.Zip(inputs, (n, v) => n.Input = v);
+            Input.Zip(
+                inputs, 
+                (n, v) => n.Input = v);
 
-            foreach (var n in Output)
-                n.Calculate();
+            Layer layer = null;
+
+            foreach (var l in this)
+            {
+                l.Calculate(layer);
+                layer = l;
+            }
         }
 
 
@@ -163,9 +136,7 @@ namespace Nevrona
             get
             {
                 return this
-                       .SelectMany(
-                           l => l.SelectMany(
-                               n => n.Concat(new[] { n.Bias })))
+                       .SelectMany(l => l.SelectMany(n => n))
                        .ToArray();
             }
 
@@ -176,16 +147,9 @@ namespace Nevrona
 
                 var i = 0;
 
-                foreach (var l in this)
-                {
-                    foreach (var n in l)
-                    {
-                        foreach (var ni in Enumerable.Range(0, n.Count))
-                            n[ni] = value[i++];
-
-                        n.Bias = value[i++];
-                    }
-                }
+                foreach (var n in this.SelectMany(l => l))
+                    foreach (var ni in Enumerable.Range(0, n.Count))
+                        n[ni] = value[i++];
             }
         }
 
