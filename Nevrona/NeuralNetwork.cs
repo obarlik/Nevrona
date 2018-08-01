@@ -39,7 +39,7 @@ namespace Nevrona
         {
             get
             {
-                return Layers.Select(l => l.Count)
+                return Layers.Select(l => l.Neurons.Count)
                        .ToArray();
             }
 
@@ -55,12 +55,15 @@ namespace Nevrona
                         "At least one hidden layer needed!",
                         "neuronCount");
 
+                Layer previousLayer = null;
+
                 foreach (var nc in value)
                 {
-                    Layers.Add(new Layer()
-                    {
-                        NeuronCount = nc
-                    });
+                    Layers.Add(previousLayer =
+                        new Layer(previousLayer == null ? 0 : previousLayer.Neurons.Count)
+                        {
+                            NeuronCount = nc
+                        });
                 }
             }
         }
@@ -72,7 +75,7 @@ namespace Nevrona
             get
             {
                 return Layers.SelectMany(l =>
-                        l.SelectMany(n => n))
+                        l.Neurons.SelectMany(n => n.Weights))
                        .Count();
             }
         }
@@ -127,7 +130,7 @@ namespace Nevrona
 
         public void Run(double[] inputs)
         {
-            Input.Zip(
+            Input.Neurons.Zip(
                 inputs, 
                 (n, v) => n.Input = v);
 
@@ -155,7 +158,7 @@ namespace Nevrona
             get
             {
                 return Layers
-                       .SelectMany(l => l.SelectMany(n => n))
+                       .SelectMany(l => l.Neurons.SelectMany(n => n.Weights))
                        .ToArray();
             }
 
@@ -166,9 +169,9 @@ namespace Nevrona
 
                 var i = 0;
 
-                foreach (var n in Layers.SelectMany(l => l))
-                    foreach (var ni in Enumerable.Range(0, n.Count))
-                        n[ni] = value[i++];
+                foreach (var n in Layers.SelectMany(l => l.Neurons))
+                    foreach (var ni in Enumerable.Range(0, n.Weights.Count))
+                        n.Weights[ni] = value[i++];
             }
         }
 

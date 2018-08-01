@@ -142,7 +142,7 @@ namespace Nevrona
 
         public static Population FromFile(string fileName)
         {
-            using (var fs = File.Create(fileName))
+            using (var fs = File.OpenRead(fileName))
             {
                 return (Population)new XmlSerializer(typeof(Population))
                        .Deserialize(fs);

@@ -3,32 +3,52 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Xml.Serialization;
 
 namespace Nevrona
 {
     [Serializable]
-    public class Layer : List<Neuron>
+    public class Layer
     {
-        public Layer()
+        [XmlIgnore]
+        public int WeightCount
         {
+            get { return Neurons[0].WeightCount; }
+            set { Neurons.ForEach(n => n.WeightCount = value); }
         }
+        
 
+        public List<Neuron> Neurons { get; }
+        
 
+        [XmlIgnore]
         public int NeuronCount
         {
-            get { return Count; }
+            get { return Neurons.Count; }
 
             set
             {
-                while (Count > value) RemoveAt(Count - 1);
-                while (Count < value) Add(new Neuron());
+                while (Neurons.Count > 1 && Neurons.Count > value) Neurons.RemoveAt(Neurons.Count - 1);
+                while (Neurons.Count < value) Neurons.Add(new Neuron(WeightCount));
             }
         }
 
-        
+
+        public Layer()
+        {
+            Neurons = new List<Neuron>();
+        }
+
+
+        public Layer(int weightCount) : this()
+        {
+            Neurons.Add(new Neuron(weightCount));
+        }
+
+
         public Layer RandomizeWeights()
         {
-            ForEach(n => n.RandomizeWeights());
+            Neurons.ForEach(n => n.RandomizeWeights());
 
             return this;
         }
@@ -36,7 +56,7 @@ namespace Nevrona
 
         public void Calculate(Layer prevLayer)
         {
-            this.AsParallel()
+            Neurons.AsParallel()
             .ForAll(n => n.Calculate(prevLayer));
         }
     }
