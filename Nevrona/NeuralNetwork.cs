@@ -17,15 +17,7 @@ namespace Nevrona
 
         [XmlIgnore]
         public Layer Output { get { return Layers.Last(); } }
-
-
-        public NeuralNetwork Parent1 { get; set; }
-        
-        public NeuralNetwork Parent2 { get; set; }
-
-        public bool Mutated { get; set; }
-
-
+                
         public List<Layer> Layers { get; }
 
 
@@ -210,8 +202,6 @@ namespace Nevrona
                     .Concat(dna2.Skip(crossIndex))
                     .ToArray(), NeuronCounts)
                 {
-                    Parent1 = this,
-                    Parent2 = partner,
                     Generation = generation
                 };
 
@@ -220,8 +210,6 @@ namespace Nevrona
                 .Concat(dna1.Skip(crossIndex))
                 .ToArray(), NeuronCounts)
             {
-                Parent1 = partner,
-                Parent2 = this,
                 Generation = generation
             };
         }
@@ -236,9 +224,6 @@ namespace Nevrona
 
             return new NeuralNetwork(dna, NeuronCounts)
             {
-                Parent1 = Parent1,
-                Parent2 = Parent2,
-                Mutated = true,
                 Generation = generation
             };
         }
