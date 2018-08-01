@@ -20,6 +20,20 @@ namespace Nevrona
         public double MutationRate = 0.01;
 
 
+        public NeuralNetwork Train(
+            IEnumerable<double[]> inputs,
+            Func<NeuralNetwork, IEnumerable<double[]>, double> fitness)
+        {
+            NeuralNetworks.AsParallel()
+            .ForAll(nn => nn.UpdateFitness(inputs, fitness));
+
+            Offspring();
+
+            return NeuralNetworks.OrderByDescending(nn => nn.Fitness)
+                   .First();
+        }
+
+
         public List<NeuralNetwork> NeuralNetworks { get; }
 
 
@@ -142,11 +156,14 @@ namespace Nevrona
 
         public static Population FromFile(string fileName)
         {
-            using (var fs = File.OpenRead(fileName))
-            {
-                return (Population)new XmlSerializer(typeof(Population))
-                       .Deserialize(fs);
-            }
+            if (File.Exists(fileName))
+                using (var fs = File.OpenRead(fileName))
+                {
+                    return (Population)new XmlSerializer(typeof(Population))
+                           .Deserialize(fs);
+                }
+            else
+                return null;
         }
     }
 }

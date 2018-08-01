@@ -10,21 +10,22 @@ namespace NevronaApp
 {
     class Program
     {
+        const string PopulationFile = "LastPopulation.xml";
+
         static void Main(string[] args)
-        {
-            var population = new Population(2, 3, 4, 1);
+        {   
+            var population = 
+                Population.FromFile(PopulationFile) ??
+                new Population(20, 50, 150, 10, 1);
 
-            population.SaveToFile("test.xml");
+            var alpha = "abcçdefgğhıijklmnoöpqrsştuüvwxyz";
 
-            var pop2 = Population.FromFile("test.xml");
+            var data = File.ReadAllLines("TrainData.txt")
+                       .Select(l => l.Select(c => (double)alpha.IndexOf(c)/(alpha.Length*10)))
 
-            pop2.SaveToFile("test2.xml");
+            population.Train();
 
-            var t1 = File.ReadAllText("test.xml");
-            var t2 = File.ReadAllText("test2.xml");
-
-            if (t1 != t2)
-                throw new Exception("Farklı!");
+            population.SaveToFile(PopulationFile);
         }
     }
 }

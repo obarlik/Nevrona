@@ -19,6 +19,13 @@ namespace Nevrona
         public Layer Output { get { return Layers.Last(); } }
 
 
+        public NeuralNetwork Parent1 { get; set; }
+        
+        public NeuralNetwork Parent2 { get; set; }
+
+        public bool Mutated { get; set; }
+
+
         public List<Layer> Layers { get; }
 
 
@@ -128,10 +135,10 @@ namespace Nevrona
         }
 
 
-        public void Run(double[] inputs)
+        public double[] Run(double[] inputs)
         {
             Input.Neurons.Zip(
-                inputs, 
+                inputs,
                 (n, v) => n.Input = v);
 
             Layer layer = null;
@@ -141,14 +148,18 @@ namespace Nevrona
                 l.Calculate(layer);
                 layer = l;
             });
+
+            return Output.Neurons
+                   .Select(n => n.Output)
+                   .ToArray();
         }
 
 
-        public void UpdateFitness(double[] inputs, Func<NeuralNetwork, double> fitnessFunc)
+        public void UpdateFitness(IEnumerable<double[]> inputs, Func<NeuralNetwork, IEnumerable<double[]>, double> fitnessFunc)
         {
-            Run(inputs);
-            Fitness = fitnessFunc(this);
+            Fitness = fitnessFunc(this, inputs.Select(input => Run(input)));
         }
+
 
     //    Output.Zip(ideals, (o, i) => -Math.Pow(o.Output.Value - i, 2.0)).Sum();
       
@@ -199,6 +210,8 @@ namespace Nevrona
                     .Concat(dna2.Skip(crossIndex))
                     .ToArray(), NeuronCounts)
                 {
+                    Parent1 = this,
+                    Parent2 = partner,
                     Generation = generation
                 };
 
@@ -206,9 +219,11 @@ namespace Nevrona
                 dna2.Take(crossIndex)
                 .Concat(dna1.Skip(crossIndex))
                 .ToArray(), NeuronCounts)
-                {
-                    Generation = generation
-                };
+            {
+                Parent1 = partner,
+                Parent2 = this,
+                Generation = generation
+            };
         }
 
 
@@ -221,6 +236,9 @@ namespace Nevrona
 
             return new NeuralNetwork(dna, NeuronCounts)
             {
+                Parent1 = Parent1,
+                Parent2 = Parent2,
+                Mutated = true,
                 Generation = generation
             };
         }
