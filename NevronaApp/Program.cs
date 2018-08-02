@@ -67,7 +67,7 @@ namespace NevronaApp
         static double[] TextToNumber(string s, int minLength = 0, int maxLength = int.MaxValue)
         {
             var r =
-                s.Select(c => (double)Alpha.IndexOf(NormalChar(c)) / (Alpha.Length * 10))
+                s.Select(c => (double)Math.Max(Alpha.IndexOf(NormalChar(c)), 0) / (Alpha.Length * 10))
                 .Select(d => d < 0 ? 0 : d)
                 .ToArray();
 
@@ -102,26 +102,58 @@ namespace NevronaApp
                 new Population(1000, 20, 50, 10, 1);
 
             NeuralNetwork champ = null;
+
             var data = File.ReadAllLines("TrainData.txt");
+                
+            var trainSet = data
+                    .Take(3)
+                    .SelectMany(s =>
+                    {
+                        var s2 = NegativeText(s);
+                        var n = TextToNumber(s, 10, 10);
+                        var n2 = TextToNumber(s2, 10, 10);
+
+                        return new[]
+                        {
+                            new
+                            {
+                                Text = s,
+                                Text2 = s,
+                                Inputs = n.Concat(n).ToArray(),
+                                Ideal = 0.3
+                            },
+                            new
+                            {
+                                Text = s,
+                                Text2 = s2,
+                                Inputs = n.Concat(n2).ToArray(),
+                                Ideal = -0.3
+                            },
+                            new
+                            {
+                                Text = s,
+                                Text2 = s2,
+                                Inputs = n2.Concat(n).ToArray(),
+                                Ideal = -0.3
+                            },
+                        };
+                    })
+                    .ToArray();
 
             var quit = false;
             var rnd = new Random();
             var fitness = 0.0;
 
-            while (fitness < 0.35)
+            for (var iter = 0; iter < 100; iter++)
             {
-                var s = data[rnd.Next(data.Length)];
-
-                var d = TextToNumber(s, 10, 10);
-                var n = TextToNumber(NegativeText(s), 10, 10);
-
                 champ = population.Train(
-                    new[] 
-                    {
-                        d.Concat(d).ToArray(),
-                        d.Concat(n).ToArray()
-                    },
-                    (nn, o) => o.First()[0] * (-o.Last()[0]));
+                    trainSet.Select(d => d.Inputs).ToArray(),
+                    (nn, o) => 1.0 / trainSet.AsParallel()
+                               .Zip(o.AsParallel(), 
+                                          (d, r) => 
+                                            ((d.Ideal * r[0]) > 0.0) ?
+                                                0 :
+                                                -Math.Abs(r[0])).Sum());
 
                 fitness = champ.Fitness;
 
@@ -138,7 +170,7 @@ namespace NevronaApp
 
                 var input = d1.Concat(d2).ToArray();
 
-                if (champ != null && champ.Run(input)[0] < 0.35)
+                if (champ != null && champ.Run(input)[0] < 0.25)
                     continue;
 
                 Console.Write("'{0}' ~ '{1}' ? ", s1, s2);
