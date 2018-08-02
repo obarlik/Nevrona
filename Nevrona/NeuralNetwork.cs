@@ -149,7 +149,7 @@ namespace Nevrona
 
         public void UpdateFitness(IEnumerable<double[]> inputs, Func<NeuralNetwork, IEnumerable<double[]>, double> fitnessFunc)
         {
-            Fitness = fitnessFunc(this, inputs.Select(input => Run(input)));
+            Fitness = fitnessFunc(this, inputs.Select(input => Run(input)).ToArray());
         }
 
 

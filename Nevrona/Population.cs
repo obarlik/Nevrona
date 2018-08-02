@@ -14,9 +14,9 @@ namespace Nevrona
     {
         public int Generation;
 
-        public double SelectionRate = 0.8;
+        public double SelectionRate = 0.5;
         public double ElitismRate = 0.1;
-        public double ReproductionRate = 0.5;
+        public double ReproductionRate = 0.3;
         public double MutationRate = 0.1;
 
 
@@ -105,22 +105,24 @@ namespace Nevrona
 
             NeuralNetworks.Clear();
 
+            NeuralNetworks.AddRange(selected);
+
+            NeuralNetworks
+            .AddRange(
+                RandomSelect(selected.Length)
+                .Take((int)(selected.Length * MutationRate))
+                .AsParallel()
+                .Select(i => selected[i].Mutate(Generation)));
+
             var elites =
                 selected
                 .Take((int)(selected.Length * ElitismRate))
                 .ToArray();
 
-            NeuralNetworks.AddRange(elites);
-
-            NeuralNetworks
-            .AddRange(
-                RandomSelect(elites.Length)
-                .Take((int)(elites.Length * MutationRate))
-                .Select(i => elites[i].Mutate(Generation)));
-
             var parents =
                 RandomSelect(elites.Length)
                 .Take((int)(elites.Length * ReproductionRate / 2.0) * 2)
+                .AsParallel()
                 .Select(i => elites[i])
                 .ToArray();
 
@@ -128,8 +130,8 @@ namespace Nevrona
 
             NeuralNetworks
             .AddRange(
-                parents.Take(motherCount)
-                .Zip(parents.Skip(motherCount),
+                parents.Take(motherCount).AsParallel()
+                .Zip(parents.Skip(motherCount).AsParallel(),
                     (m, f) => m.CrossOver(f, Generation))
                 .SelectMany(c => c));
 
@@ -139,12 +141,14 @@ namespace Nevrona
             .AddRange(
                 RandomSelect(otherCount)
                 .Take((int)(otherCount * MutationRate))
+                .AsParallel()
                 .Select(i => selected[elites.Length + i]
                              .Mutate(Generation)));
 
             parents =
                 RandomSelect(otherCount)
                 .Take((int)(otherCount * ReproductionRate))
+                .AsParallel()
                 .Select(i => selected[elites.Length + i])
                 .ToArray();
 
@@ -152,19 +156,22 @@ namespace Nevrona
 
             NeuralNetworks
             .AddRange(
-                parents.Take(motherCount)
-                .Zip(parents.Skip(motherCount),
+                parents.Take(motherCount).AsParallel()
+                .Zip(parents.Skip(motherCount).AsParallel(),
                     (m, f) => m.CrossOver(f, Generation))
                 .SelectMany(c => c));
 
             if (Size > NeuralNetworks.Count)
+            {
                 NeuralNetworks.AddRange(
-                    Enumerable.Range(0, (Size - NeuralNetworks.Count) / 2)
-                    .SelectMany(i => 
-                        RandomSelect(elites.Length).Take(1).Select(ei => elites[ei])
-                        .Zip(RandomSelect(otherCount).Take(1).Select(oi => selected[elites.Length + oi]),
-                             (e, o) => e.CrossOver(o, Generation))
-                        .SelectMany(z => z)));
+                    Enumerable.Range(0, Size - NeuralNetworks.Count)
+                    .AsParallel()
+                    .Select(i => new NeuralNetwork(NeuronCounts)
+                    {
+                        Generation = Generation
+                    })
+                );
+            }
         }
 
 

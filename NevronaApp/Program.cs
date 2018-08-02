@@ -47,6 +47,23 @@ namespace NevronaApp
         }
 
 
+        static string NormalString(string s)
+        {
+            return new string(s.Select(c => NormalChar(c)).ToArray());
+        }
+
+
+        static string NegativeText(string s)
+        {
+            return new string(
+                TextToNumber(s)
+                .Select(n => Alpha[
+                    (int)((1.0 - n * 10 - 1.0 / (Alpha.Length - 1)) 
+                       * (Alpha.Length - 1))])
+                .ToArray());
+        }
+
+
         static double[] TextToNumber(string s, int minLength = 0, int maxLength = int.MaxValue)
         {
             var r =
@@ -82,7 +99,7 @@ namespace NevronaApp
         {   
             var population = 
                 Population.FromFile(PopulationFile) ??
-                new Population(500, 20, 50, 10, 1);
+                new Population(1000, 20, 50, 10, 1);
 
             NeuralNetwork champ = null;
             var data = File.ReadAllLines("TrainData.txt");
@@ -91,15 +108,20 @@ namespace NevronaApp
             var rnd = new Random();
             var fitness = 0.0;
 
-            while (fitness < 0.6)
+            while (fitness < 0.35)
             {
                 var s = data[rnd.Next(data.Length)];
 
                 var d = TextToNumber(s, 10, 10);
+                var n = TextToNumber(NegativeText(s), 10, 10);
 
                 champ = population.Train(
-                    new[] { d.Concat(d).ToArray() },
-                    (nn, o) => o.First()[0]);
+                    new[] 
+                    {
+                        d.Concat(d).ToArray(),
+                        d.Concat(n).ToArray()
+                    },
+                    (nn, o) => o.First()[0] * (-o.Last()[0]));
 
                 fitness = champ.Fitness;
 
@@ -116,7 +138,7 @@ namespace NevronaApp
 
                 var input = d1.Concat(d2).ToArray();
 
-                if (champ != null && champ.Run(input)[0] < 0.5)
+                if (champ != null && champ.Run(input)[0] < 0.35)
                     continue;
 
                 Console.Write("'{0}' ~ '{1}' ? ", s1, s2);
@@ -137,8 +159,8 @@ namespace NevronaApp
                 champ = population.Train(
                     new[] { d1.Concat(d2).ToArray() },
                     (nn, o) =>
-                        (o.First()[0] > 0.5 && "YE".Contains(choice))
-                     || (o.First()[0] < -0.5 && "NH".Contains(choice)) ?
+                        (o.First()[0] >= 0.35 && "YE".Contains(choice))
+                     || (o.First()[0] <= -0.35 && "NH".Contains(choice)) ?
                             Math.Abs(o.First()[0]) :
                            -Math.Abs(o.First()[0]));
 
